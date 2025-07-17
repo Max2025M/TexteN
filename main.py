@@ -1,62 +1,44 @@
 import asyncio
-from pyppeteer import launch
-from datetime import datetime
-import pytz
 import logging
+from pyppeteer import launch
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s: %(message)s',
-)
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s - %(message)s')
 
-URL = "https://livestream.ct.ws/M/receber.php"
-INTERVALO_SEGUNDOS = 60  # 1 minuto
+URL_SERVIDOR = "https://livestream.ct.ws/M/receber.php"
 
-async def enviar_solicitacao():
-    browser = None
+async def enviar_requisicao():
     try:
         browser = await launch(headless=True, args=['--no-sandbox'])
         page = await browser.newPage()
-        logging.info(f"Iniciando acesso ao {URL}")
+        await page.goto(URL_SERVIDOR, timeout=30000)  # 30s timeout
 
-        # Navega e espera a rede ficar ociosa, para que scripts JS sejam executados
-        response = await page.goto(URL, waitUntil='networkidle2', timeout=15000)
-
-        if response is None:
-            logging.warning("⚠️ Sem resposta do servidor (timeout ou falha).")
-            return False
-
-        status = response.status
         content = await page.content()
 
-        logging.info(f"Status da resposta HTTP: {status}")
+        if "limite" in content.lower():
+            logging.warning("🛑 Servidor respondeu com 'limite'. Encerrando.")
+            await browser.close()
+            return False  # sinaliza para parar o loop
 
-        if "OK" in content:
-            logging.info("✅ Resposta OK recebida, continuar enviando solicitações.")
-            return True
-        else:
-            logging.info("⚠️ Resposta diferente de OK (possivelmente fim do horário).")
-            return False
+        logging.info("✅ Solicitação enviada com sucesso")
+        await browser.close()
+        return True  # continua
 
     except Exception as e:
-        logging.error(f"❌ Erro ao acessar o servidor: {e}")
-        return False
+        logging.error(f"❌ Erro ao enviar solicitação: {e}")
+        return True  # continua tentando mesmo com erro
 
-    finally:
-        if browser:
-            try:
-                await browser.close()
-            except Exception as e:
-                logging.warning(f"⚠️ Erro ao fechar o navegador: {e}")
-
-async def loop_pyppeteer():
+async def loop_continuo():
     while True:
-        continuar = await enviar_solicitacao()
+        continuar = await enviar_requisicao()
         if not continuar:
-            logging.info("⏹️ Parando o loop - servidor não respondeu OK.")
             break
-        logging.info(f"⏳ Aguardando {INTERVALO_SEGUNDOS} segundos para a próxima requisição...")
-        await asyncio.sleep(INTERVALO_SEGUNDOS)
+        await asyncio.sleep(60)  # espera 1 minuto antes da próxima
 
 if __name__ == "__main__":
-    asyncio.run(loop_pyppeteer())
+    try:
+        asyncio.run(loop_continuo())
+    except KeyboardInterrupt:
+        logging.warning("🛑 Interrompido manualmente.")
+    except Exception as e:
+        logging.error(f"Erro fatal: {e}")
+
