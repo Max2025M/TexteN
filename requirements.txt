@@ -1,3 +1,5 @@
-flask
-pyppeteer
+pyppeteer==1.0.2
+pytz
+
+
 
