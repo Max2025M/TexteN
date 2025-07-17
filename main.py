@@ -1,4 +1,6 @@
 import asyncio
+from threading import Thread
+from flask import Flask
 from pyppeteer import launch
 import logging
 
@@ -6,6 +8,8 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
 
 URL = "https://livestream.ct.ws/M/receber.php"
 INTERVALO_SEGUNDOS = 180  # 3 minutos
+
+app = Flask(__name__)
 
 async def enviar_solicitacao():
     browser = await launch(headless=True, args=['--no-sandbox'])
@@ -39,7 +43,7 @@ async def enviar_solicitacao():
         await browser.close()
         return False
 
-async def main_loop():
+async def loop_pyppeteer():
     while True:
         continuar = await enviar_solicitacao()
         if not continuar:
@@ -48,5 +52,17 @@ async def main_loop():
         logging.info(f"Aguardando {INTERVALO_SEGUNDOS} segundos para próxima requisição...")
         await asyncio.sleep(INTERVALO_SEGUNDOS)
 
+def start_loop():
+    asyncio.run(loop_pyppeteer())
+
+@app.route('/')
+def index():
+    return "Serviço ativo. Pyppeteer rodando em background."
+
 if __name__ == "__main__":
-    asyncio.run(main_loop())
+    # Inicia loop Pyppeteer em thread separada para não travar Flask
+    t = Thread(target=start_loop)
+    t.start()
+
+    # Roda o Flask no host 0.0.0.0 na porta 10000 (Render prefere porta 10000+)
+    app.run(host="0.0.0.0", port=10000)
