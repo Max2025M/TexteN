@@ -2,26 +2,21 @@ import asyncio
 import os
 import uvicorn
 from fastapi import FastAPI
-
 from pyppeteer import launch
 
 URL_PHP = "https://livestream.ct.ws/M/receber.php"
-ARQUIVO_DESBLOQUEIO = "desbloqueado.txt"
 
 app = FastAPI()
 
 loop_task = None
-bloqueado = False
+parar = False  # flag para controlar parada do loop
 
 async def esperar(ms):
     await asyncio.sleep(ms / 1000)
 
-async def desbloqueado():
-    return os.path.exists(ARQUIVO_DESBLOQUEIO)
-
 async def executar_loop():
-    global bloqueado
-    while True:
+    global parar
+    while not parar:
         browser = await launch(headless=True, args=['--no-sandbox'])
         page = await browser.newPage()
         page.setDefaultNavigationTimeout(60000)
@@ -34,23 +29,14 @@ async def executar_loop():
             print(f"📩 Resposta do PHP: {resposta}")
 
             if 'limite' in resposta.lower():
-                print("🛑 Limite atingido. Aguardando desbloqueio externo...")
-
-                bloqueado = True
+                print("🛑 Limite atingido. Parando envio de solicitações.")
+                parar = True
                 await browser.close()
+                break
 
-                while bloqueado:
-                    if await desbloqueado():
-                        print("✅ Desbloqueio detectado! Removendo flag...")
-                        os.remove(ARQUIVO_DESBLOQUEIO)
-                        bloqueado = False
-                        break
-                    await esperar(3000)
-
-            else:
-                print("⏳ Esperando 10 segundos antes da próxima solicitação...")
-                await browser.close()
-                await esperar(10000)
+            print("⏳ Esperando 10 segundos antes da próxima solicitação...")
+            await browser.close()
+            await esperar(10000)
 
         except Exception as e:
             print(f"❌ Erro: {e}")
@@ -65,12 +51,6 @@ async def startup_event():
 @app.get("/")
 async def raiz():
     return {"status": "Rodando"}
-
-@app.post("/desbloquear")
-async def desbloquear():
-    with open(ARQUIVO_DESBLOQUEIO, "w") as f:
-        f.write("ok")
-    return {"mensagem": "Desbloqueio registrado com sucesso."}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
