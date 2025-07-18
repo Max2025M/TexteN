@@ -12,58 +12,53 @@ bloqueado = False  # flag global para controle de pausa/executar
 
 async def enviar_requisicao_php():
     global bloqueado
-    try:
-        if bloqueado:
-            logging.warning("🚫 Execução pausada por bloqueio ('limite'). Aguardando desbloqueio via /desbloquear.")
+    while True:
+        try:
+            if bloqueado:
+                logging.warning("🚫 Execução pausada por bloqueio ('limite'). Aguardando desbloqueio via /desbloquear.")
+                await asyncio.sleep(10)
+                continue
+
+            logging.info("🚀 Enviando requisição ao servidor PHP...")
+
+            browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+            page = await browser.newPage()
+            await page.goto(URL_PHP, {
+                'timeout': 30000,
+                'waitUntil': 'networkidle2'
+            })
+
+            await asyncio.sleep(3)  # Aguarda execução de JS
+
+            # Captura todo conteúdo HTML para garantir que não perca nada
+            conteudo = await page.content()
+            await browser.close()
+
+            conteudo = conteudo.strip()
+            logging.info(f"📋 Resposta completa:\n{conteudo}")
+
+            if "limite" in conteudo.lower():
+                logging.warning("🛑 Limite detectado! Travando execuções até desbloqueio...")
+                bloqueado = True
+                break  # Sai do loop de tentativa, mas o loop principal continua
+
+            if "sucesso" in conteudo.lower():
+                logging.info("✅ Sucesso detectado. Aguardando 10 segundos para próxima requisição...")
+                await asyncio.sleep(10)
+            else:
+                logging.info("ℹ️ Resposta sem sucesso. Tentando novamente em 10 segundos...")
+                await asyncio.sleep(10)
+
+        except TimeoutError:
+            logging.error("⏰ Timeout ao acessar o PHP. Tentando novamente em 10 segundos...")
             await asyncio.sleep(10)
-            return True
-
-        logging.info("🚀 Enviando requisição ao servidor PHP...")
-
-        browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
-        page = await browser.newPage()
-
-        await page.goto(URL_PHP, {
-            'timeout': 30000,
-            'waitUntil': 'networkidle2'
-        })
-
-        await asyncio.sleep(3)  # Garante execução de scripts JS
-
-        conteudo = await page.evaluate('() => document.body.textContent')
-        await browser.close()
-
-        conteudo = conteudo.strip()
-        logging.info(f"📋 Resposta recebida: {conteudo}")
-
-        if "limite" in conteudo.lower():
-            logging.warning("🛑 Limite detectado! Travando execuções até desbloqueio...")
-            bloqueado = True
-            return True
-
-        if "sucesso" in conteudo.lower():
-            logging.info("✅ Sucesso detectado. Aguardando 10 segundos para próxima requisição...")
+        except Exception as e:
+            logging.error(f"❌ Erro ao acessar o PHP: {e}. Tentando novamente em 10 segundos...")
             await asyncio.sleep(10)
-            return True
-
-        logging.info("ℹ️ Resposta sem sucesso. Aguardando 10 segundos antes de tentar novamente...")
-        await asyncio.sleep(10)
-        return True
-
-    except TimeoutError:
-        logging.error("⏰ Timeout ao acessar o PHP. Tentando novamente em 10 segundos...")
-        await asyncio.sleep(10)
-        return True
-    except Exception as e:
-        logging.error(f"❌ Erro ao acessar o PHP: {e}. Tentando novamente em 10 segundos...")
-        await asyncio.sleep(10)
-        return True
 
 async def loop_php():
     while True:
-        continuar = await enviar_requisicao_php()
-        if not continuar:
-            break
+        await enviar_requisicao_php()
 
 async def handle(request):
     return web.Response(text="Render: Serviço ativo.")
