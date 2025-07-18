@@ -8,38 +8,46 @@ from pyppeteer.errors import TimeoutError
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s - %(message)s')
 
 URL_SERVIDOR = "https://livestream.ct.ws/M/receber.php"
+primeira_resposta = False  # Flag para resposta inicial no endpoint web
 
 async def enviar_requisicao():
+    global primeira_resposta
     try:
-        logging.info("🚀 Iniciando nova solicitação ao servidor...")
+        logging.info("🚀 Iniciando nova solicitação ao servidor PHP...")
 
         browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
         page = await browser.newPage()
 
+        # Abre a página e aguarda a rede ficar ociosa (JS resolvido)
         await page.goto(URL_SERVIDOR, {
             'timeout': 30000,
             'waitUntil': 'networkidle2'
         })
 
-        await asyncio.sleep(3)  # espera extra para JS
+        await asyncio.sleep(3)  # espera extra para garantir execução de JS
 
         content = await page.content()
-
         await browser.close()
 
-        if "limite" in content.lower():
-            logging.warning("🛑 Servidor respondeu com 'limite'. Encerrando requisições.")
-            return False
+        # Extraindo texto limpo da página (opcional, pois pode conter HTML)
+        text_lower = content.lower()
 
-        logging.info("✅ Solicitação enviada com sucesso.")
+        logging.info(f"Resposta do PHP recebida (HTML): {content[:200]}...")  # Log parcial da resposta
+
+        if "limite" in text_lower:
+            logging.warning("🛑 Servidor PHP respondeu com 'limite'. Encerrando requisições.")
+            return False  # para o loop
+
+        logging.info("✅ Solicitação enviada com sucesso e resposta OK.")
+        primeira_resposta = True
         return True
 
     except TimeoutError:
         logging.error("⏰ Tempo excedido ao tentar carregar a página.")
-        return True
+        return True  # continua tentando
     except Exception as e:
         logging.error(f"❌ Erro ao enviar solicitação: {e}")
-        return True
+        return True  # continua tentando
 
 async def loop_continuo():
     while True:
@@ -50,17 +58,19 @@ async def loop_continuo():
         await asyncio.sleep(60)
 
 async def handle(request):
-    return web.Response(text="Render: Serviço ativo.\n")
+    if primeira_resposta:
+        return web.Response(text="Render: Serviço ativo.")
+    else:
+        return web.Response(text="Render: Serviço ativo. Primeira solicitação enviada com sucesso.")
 
 async def main():
-    # Start background task
+    # Inicia loop de requisições em background
     asyncio.create_task(loop_continuo())
 
-    # Setup web server
+    # Configura servidor web para responder pings
     app = web.Application()
     app.router.add_get('/', handle)
 
-    # Porta definida pelo Render (ou padrão 10000)
     port = int(os.environ.get('PORT', 10000))
     runner = web.AppRunner(app)
     await runner.setup()
@@ -68,7 +78,7 @@ async def main():
     logging.info(f"🔵 Servidor web rodando em http://0.0.0.0:{port}")
     await site.start()
 
-    # Mantém o servidor rodando
+    # Mantém o serviço rodando
     while True:
         await asyncio.sleep(3600)
 
