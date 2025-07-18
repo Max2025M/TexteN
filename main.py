@@ -7,67 +7,57 @@ from pyppeteer.errors import TimeoutError
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s - %(message)s')
 
-URL_SERVIDOR = "https://livestream.ct.ws/M/receber.php"
-primeira_resposta = False  # Flag para resposta inicial no endpoint web
+URL_PHP = "https://livestream.ct.ws/M/receber.php"
 
-async def enviar_requisicao():
-    global primeira_resposta
+async def enviar_requisicao_php():
     try:
-        logging.info("🚀 Iniciando nova solicitação ao servidor PHP...")
+        logging.info("🚀 Enviando requisição ao servidor PHP...")
 
         browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
         page = await browser.newPage()
 
-        # Abre a página e aguarda a rede ficar ociosa (JS resolvido)
-        await page.goto(URL_SERVIDOR, {
+        await page.goto(URL_PHP, {
             'timeout': 30000,
             'waitUntil': 'networkidle2'
         })
 
-        await asyncio.sleep(3)  # espera extra para garantir execução de JS
+        await asyncio.sleep(3)  # garante execução JS
 
-        content = await page.content()
+        conteudo = await page.evaluate('() => document.body.textContent')
+
         await browser.close()
 
-        # Extraindo texto limpo da página (opcional, pois pode conter HTML)
-        text_lower = content.lower()
+        logging.info(f"📋 Resposta do PHP: {conteudo.strip()}")
 
-        logging.info(f"Resposta do PHP recebida (HTML): {content[:200]}...")  # Log parcial da resposta
+        if "limite" in conteudo.lower():
+            logging.warning("🛑 Limite atingido, parando as requisições ao PHP.")
+            return False
 
-        if "limite" in text_lower:
-            logging.warning("🛑 Servidor PHP respondeu com 'limite'. Encerrando requisições.")
-            return False  # para o loop
-
-        logging.info("✅ Solicitação enviada com sucesso e resposta OK.")
-        primeira_resposta = True
         return True
 
     except TimeoutError:
-        logging.error("⏰ Tempo excedido ao tentar carregar a página.")
-        return True  # continua tentando
+        logging.error("⏰ Timeout ao acessar o PHP.")
+        return True  # continuar tentando
     except Exception as e:
-        logging.error(f"❌ Erro ao enviar solicitação: {e}")
-        return True  # continua tentando
+        logging.error(f"❌ Erro ao acessar o PHP: {e}")
+        return True
 
-async def loop_continuo():
+async def loop_php():
     while True:
-        continuar = await enviar_requisicao()
+        continuar = await enviar_requisicao_php()
         if not continuar:
             break
-        logging.info("⏳ Aguardando 60 segundos antes da próxima solicitação...")
+        logging.info("⏳ Aguardando 60 segundos antes da próxima requisição PHP...")
         await asyncio.sleep(60)
 
 async def handle(request):
-    if primeira_resposta:
-        return web.Response(text="Render: Serviço ativo.")
-    else:
-        return web.Response(text="Render: Serviço ativo. Primeira solicitação enviada com sucesso.")
+    return web.Response(text="Render: Serviço ativo.")
 
 async def main():
-    # Inicia loop de requisições em background
-    asyncio.create_task(loop_continuo())
+    # Start background task que roda as requisições ao PHP
+    asyncio.create_task(loop_php())
 
-    # Configura servidor web para responder pings
+    # Configura servidor web para o Render "ver que o serviço está online"
     app = web.Application()
     app.router.add_get('/', handle)
 
@@ -78,7 +68,7 @@ async def main():
     logging.info(f"🔵 Servidor web rodando em http://0.0.0.0:{port}")
     await site.start()
 
-    # Mantém o serviço rodando
+    # Mantém o serviço rodando para o Render
     while True:
         await asyncio.sleep(3600)
 
