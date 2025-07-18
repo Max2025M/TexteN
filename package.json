@@ -2,11 +2,12 @@
   "name": "render-monitor",
   "version": "1.0.0",
   "main": "servidorRender.js",
-  "license": "MIT",
   "scripts": {
+    "install": "puppeteer install",
     "start": "node servidorRender.js"
   },
   "dependencies": {
-    "puppeteer": "^22.8.2"
+    "puppeteer": "^21.11.0"
   }
 }
+
