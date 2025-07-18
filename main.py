@@ -1,21 +1,23 @@
 import asyncio
 import os
-import uvicorn
 from fastapi import FastAPI
 from pyppeteer import launch
+import uvicorn
 
 URL_PHP = "https://livestream.ct.ws/M/receber.php"
 
 app = FastAPI()
 
 loop_task = None
-parar = False  # flag para controlar parada do loop
+parar = False
+loop_rodando = False
 
 async def esperar(ms):
     await asyncio.sleep(ms / 1000)
 
 async def executar_loop():
-    global parar
+    global parar, loop_rodando
+    loop_rodando = True
     while not parar:
         browser = await launch(headless=True, args=['--no-sandbox'])
         page = await browser.newPage()
@@ -42,15 +44,22 @@ async def executar_loop():
             print(f"❌ Erro: {e}")
             await browser.close()
 
-@app.on_event("startup")
-async def startup_event():
-    global loop_task
-    print("🚀 Iniciando loop assíncrono de solicitações...")
-    loop_task = asyncio.create_task(executar_loop())
+    loop_rodando = False
 
 @app.get("/")
 async def raiz():
-    return {"status": "Rodando"}
+    return {"status": "Rodando", "loop_ativo": not parar}
+
+@app.get("/loop")
+async def reativar_loop():
+    global loop_task, parar
+    if parar or not loop_rodando:
+        print("🔁 Reativando loop de solicitações...")
+        parar = False
+        loop_task = asyncio.create_task(executar_loop())
+        return {"status": "Loop reiniciado"}
+    else:
+        return {"status": "Loop já está em execução"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
