@@ -1,13 +1,1 @@
-{
-  "name": "render-monitor",
-  "version": "1.0.0",
-  "description": "Script para acordar serviço Render",
-  "main": "ServidorRender.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "puppeteer": "^21.11.0"
-  }
-}
-
+pyppeteer==1.0.2
