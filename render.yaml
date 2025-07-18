@@ -1,8 +1,9 @@
 services:
-  - type: web
-    name: render-monitor
-    env: node
-    buildCommand: yarn install
-    startCommand: node servidorRender.js 
+  - type: worker
+    name: monitor-php-loop-python
+    runtime: python
+    region: frankfurt
     plan: free
-    nodeVersion: 20
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 servidor_render.py
+    autoDeploy: true
