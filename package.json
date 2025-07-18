@@ -1,0 +1,19 @@
+{
+  "name": "render-monitor",
+  "version": "1.0.0",
+  "description": "Script que acessa um PHP continuamente usando Puppeteer",
+  "main": "servidorRender.js",
+  "scripts": {
+    "start": "node servidorRender.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.3.8"
+  }
+}
+
+
+
+
+
+
+
