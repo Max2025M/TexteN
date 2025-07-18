@@ -1,10 +1,8 @@
 services:
-  - type: worker
-    name: monitor-php-loop
-    runtime: node
-    region: frankfurt
+  - type: web
+    name: render-monitor
+    env: node
+    buildCommand: yarn install
+    startCommand: node servidorRender.js 
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
-    autoDeploy: true
-
+    nodeVersion: 20
