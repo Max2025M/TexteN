@@ -1,8 +1,10 @@
 services:
   - type: worker
-    name: pyppeteer-solicitador
-    env: python
+    name: monitor-php-loop
+    runtime: node
+    region: frankfurt
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
-    autoDeploy: false
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+
